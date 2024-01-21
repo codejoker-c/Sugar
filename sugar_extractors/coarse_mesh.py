@@ -72,7 +72,7 @@ def extract_mesh_from_coarse_sugar(args):
             args.mesh_output_dir = os.path.join("./output/coarse_mesh", args.scene_path.split("/")[-2])
     mesh_output_dir = args.mesh_output_dir
     os.makedirs(mesh_output_dir, exist_ok=True)
-            
+
     # Bounding box
     if args.bboxmin is None:
         use_custom_bbox = False
@@ -256,7 +256,7 @@ def extract_mesh_from_coarse_sugar(args):
                         camera_indices=cam_idx,
                         bg_color = None,
                         sh_deg=0,  # nerfmodel.gaussians.active_sh_degree,
-                        compute_color_in_rasterizer=True,
+                        compute_color_in_rasterizer=False, # True
                         compute_covariance_in_rasterizer=True,
                         return_2d_radii=False,
                         use_same_scale_in_all_directions=False,
@@ -636,7 +636,10 @@ def extract_mesh_from_coarse_sugar(args):
             
             density_th = surface_levels[0]  # 1.
             CONSOLE.print(f"Computing mesh for surface level {density_th}...")
+            # the vertices are the intersections between iso surface and the edges of the voxel grid
+            # the triangles are the index of vertices, three index compose a triangle
             vertices, triangles = mcubes.marching_cubes(densities.cpu().numpy(), density_th)
+            # normalize to [-1, 1] * sugar.get_cameras_spatial_extent()
             verts = -sugar.get_cameras_spatial_extent() + (torch.tensor(vertices) / resolution) * 2 * sugar.get_cameras_spatial_extent()
             faces = torch.tensor(triangles.tolist())
             closest_gaussians = sugar.get_gaussians_closest_to_samples(verts.float().to(sugar.device))

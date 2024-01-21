@@ -172,7 +172,10 @@ def eval_sh(deg, sh, dirs):
     return result
 
 def RGB2SH(rgb):
-    return (rgb - 0.5) / C0
+    # return (rgb - 0.5) / C0
+    return rgb
+
 
 def SH2RGB(sh):
-    return sh * C0 + 0.5
+    # return sh * C0 + 0.5
+    return sh

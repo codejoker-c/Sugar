@@ -16,7 +16,10 @@ class ModelParams():
     https://github.com/graphdeco-inria/gaussian-splatting
     """
     def __init__(self):
-        self.sh_degree = 3
+        # debug
+        # self.sh_degree = 3
+        self.sh_degree = 0
+
         self.source_path = ""
         self.model_path = ""
         self.images = "images"
