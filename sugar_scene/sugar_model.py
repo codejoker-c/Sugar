@@ -439,6 +439,8 @@ class SuGaR(nn.Module):
     
     @property
     def triangle_vertices(self):
+        # build mesh vertices from gaussians
+
         # Apply shift to triangle vertices
         if self.primitive_types == 'diamond':
             self.primitive_verts = self._diamond_verts
@@ -559,11 +561,13 @@ class SuGaR(nn.Module):
         if mode == 'depth':
             new_verts_in_camera_space[..., 2] = gaussian_centers_in_camera_space[..., 2]
         else:
+            # stretch the vector by (gaussian depth / points projection along gaussians vector) in camera space
             proj_dir = torch.nn.functional.normalize(gaussian_centers_in_camera_space, dim=-1)  # Shape (n_points, 1, 3)
             verts_projection = (new_verts_in_camera_space * proj_dir).sum(-1, keepdim=True)  # Shape (n_points, n_vertices_per_gaussian, 1)
             centers_projection = (gaussian_centers_in_camera_space * proj_dir).sum(-1, keepdim=True)  # Shape (n_points, 1, 1)
             new_verts_in_camera_space = (centers_projection / verts_projection) * new_verts_in_camera_space
-        
+
+        # gaussians positions, scaling, rotation and camera extrinsic params are needed to get this attributes
         splatted_verts = p3d_camera.get_world_to_view_transform().inverse().transform_points(new_verts_in_camera_space.reshape(-1, 3))
         
         textures_uv = TexturesUV(
@@ -572,7 +576,7 @@ class SuGaR(nn.Module):
             faces_uvs=self.faces_uv[None],
             sampling_mode='nearest',
             )
-        
+
         return Meshes(
             verts=[splatted_verts],   
             faces=[self.triangles],

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import open3d as o3d
 import torch
+import torchvision
 from pytorch3d.renderer import RasterizationSettings, MeshRasterizer
 from sugar_scene.gs_model import GaussianSplattingWrapper
 from sugar_scene.sugar_model import SuGaR
@@ -261,6 +262,13 @@ def extract_mesh_from_coarse_sugar(args):
                         return_2d_radii=False,
                         use_same_scale_in_all_directions=False,
                     ).clamp(min=0., max=1.).contiguous()
+
+
+                    # debug
+                    to_pil = torchvision.transforms.ToPILImage()
+                    img = to_pil(rgb.cpu().permute(2, 0, 1))
+                    img.show()
+
                     
                     # Compute surface level points for the current frame
                     if cam_idx == 0:
