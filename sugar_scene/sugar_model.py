@@ -448,6 +448,7 @@ class SuGaR(nn.Module):
 
     @property
     def triangle_vertices(self):
+        # initialize mesh vertices using gaussian
         # Apply shift to triangle vertices
         if self.primitive_types == 'diamond':
             self.primitive_verts = self._diamond_verts

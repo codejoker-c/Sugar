@@ -257,16 +257,16 @@ def extract_mesh_from_coarse_sugar(args):
                         camera_indices=cam_idx,
                         bg_color = None,
                         sh_deg=0,  # nerfmodel.gaussians.active_sh_degree,
-                        compute_color_in_rasterizer=False, # True
+                        compute_color_in_rasterizer=True, # True
                         compute_covariance_in_rasterizer=True,
                         return_2d_radii=False,
                         use_same_scale_in_all_directions=False,
                     ).clamp(min=0., max=1.).contiguous()
 
                     # debug
-                    to_pil = torchvision.transforms.ToPILImage()
-                    img = to_pil(rgb.cpu().permute(2, 0, 1))
-                    img.show()
+                    # to_pil = torchvision.transforms.ToPILImage()
+                    # img = to_pil(rgb.cpu().permute(2, 0, 1))
+                    # img.show()
 
                     # Compute surface level points for the current frame
                     if cam_idx == 0:

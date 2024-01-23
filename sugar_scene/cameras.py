@@ -45,13 +45,14 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
         # Extrinsics
         rot = np.array(camera_transform['rotation'])
         pos = np.array(camera_transform['position'])
+
+        # the W2C here should be C2W, notation is misleading
+        C2W = np.zeros((4,4))
+        C2W[:3, :3] = rot
+        C2W[:3, 3] = pos
+        C2W[3,3] = 1
         
-        W2C = np.zeros((4,4))
-        W2C[:3, :3] = rot
-        W2C[:3, 3] = pos
-        W2C[3,3] = 1
-        
-        Rt = np.linalg.inv(W2C)
+        Rt = np.linalg.inv(C2W)
         T = Rt[:3, 3]
         R = Rt[:3, :3].transpose()
         
@@ -70,6 +71,7 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
         
         if load_gt_images:
             image = Image.open(image_path)
+
             orig_w, orig_h = image.size
             downscale_factor = 1
             if image_resolution in [1, 2, 4, 8]:
@@ -410,7 +412,9 @@ class CamerasWrapper:
         
         device = gs_cameras[0].device        
         N = len(gs_cameras)
+        # rotation are from world to camera
         R = torch.Tensor(np.array([gs_camera.R for gs_camera in gs_cameras])).to(device)
+        # transformation are from camera to world
         T = torch.Tensor(np.array([gs_camera.T for gs_camera in gs_cameras])).to(device)
         self.fx = torch.Tensor(np.array([fov2focal(gs_camera.FoVx, gs_camera.image_width) for gs_camera in gs_cameras])).to(device)
         self.fy = torch.Tensor(np.array([fov2focal(gs_camera.FoVy, gs_camera.image_height) for gs_camera in gs_cameras])).to(device)
@@ -423,8 +427,9 @@ class CamerasWrapper:
         w2c[:, :3, :3] = R.transpose(-1, -2)
         w2c[:, :3, 3] = T
         w2c[:, 3, 3] = 1
-        
+
         c2w = w2c.inverse()
+        # flip yz coordinate, convert gaussian world coordinate to sugar world coordinate.
         c2w[:, :3, 1:3] *= -1
         c2w = c2w[:, :3, :]
         self.camera_to_worlds = c2w
