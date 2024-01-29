@@ -1866,6 +1866,8 @@ class SuGaR(nn.Module):
         no_depth_mask = depth < 0.
         depth[no_depth_mask] = depth.max() * 1.05
 
+
+        # TODO read OpenGL NDC space tutorial then read the code
         # We backproject the points in world space
         batch_size = 1
         x_tab = torch.Tensor([[i for j in range(self.image_width)] for i in range(self.image_height)]).to(self.device)
