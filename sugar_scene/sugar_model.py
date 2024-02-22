@@ -12,7 +12,7 @@ from sugar_utils.spherical_harmonics import (
 )
 from sugar_utils.graphics_utils import *
 from sugar_utils.general_utils import inverse_sigmoid
-from sugar_scene.gs_model import GaussianSplattingWrapper
+from sugar_scene.gs_model import GaussianSplattingWrapper, GaussianModel
 from sugar_scene.cameras import CamerasWrapper
 
 
@@ -106,6 +106,9 @@ class SuGaR(nn.Module):
         learn_surface_mesh_opacity=True,
         learn_surface_mesh_scales=True,
         n_gaussians_per_surface_triangle=6,  # 1, 3, 4 or 6
+        editable=False,  # If True, allows for automatically rescaling Gaussians in real time if triangles are deformed from their original shape. 
+        # We wrote about this functionality in the paper, and it was previously part of sugar_compositor.py, which we haven't finished cleaning yet for this repo.
+        # We now moved it to this script as it is more related to the SuGaR model than to the compositor.
         *args, **kwargs) -> None:
         """
         Args:
@@ -147,6 +150,7 @@ class SuGaR(nn.Module):
             self.learn_surface_mesh_opacity = learn_surface_mesh_opacity
             self.learn_surface_mesh_scales = learn_surface_mesh_scales
             self.n_gaussians_per_surface_triangle = n_gaussians_per_surface_triangle
+            self.editable = editable
             
             self.learn_positions = self.learn_surface_mesh_positions
             self.learn_scales = self.learn_surface_mesh_scales
@@ -331,6 +335,10 @@ class SuGaR(nn.Module):
             self._quaternions = nn.Parameter(
                 complex_numbers,
                 requires_grad=self.learn_surface_mesh_scales).to(nerfmodel.device)
+            
+            # Reference scaling factor
+            if self.editable:
+                self.reference_scaling_factor = (faces_verts - faces_verts.mean(dim=1, keepdim=True)).norm(dim=-1).mean(dim=-1, keepdim=True)
         
         # Initialize color features
         self.sh_levels = sh_levels
@@ -402,9 +410,15 @@ class SuGaR(nn.Module):
         if not self.binded_to_surface_mesh:
             scales = self.scale_activation(self._scales)
         else:
+            plane_scales = self.scale_activation(self._scales)
+            if self.editable:
+                faces_verts = self._points[self._surface_mesh_faces]
+                faces_centers = faces_verts.mean(dim=1, keepdim=True)
+                scaling_factor = (faces_verts - faces_centers).norm(dim=-1).mean(dim=-1, keepdim=True) / self.reference_scaling_factor
+                plane_scales = plane_scales * scaling_factor[:, None].expand(-1, self.n_gaussians_per_surface_triangle, -1).reshape(-1, 1)
             scales = torch.cat([
                 self.surface_mesh_thickness * torch.ones(len(self._scales), 1, device=self.device), 
-                self.scale_activation(self._scales)
+                plane_scales,
                 ], dim=-1)
         return scales
     
@@ -519,6 +533,12 @@ class SuGaR(nn.Module):
             # verts_normals=[verts_normals.to(rc.device)],
             )
         return surface_mesh
+    
+    def make_editable(self):
+        if self.binded_to_surface_mesh and (not self.editable):
+            self.editable = True
+            faces_verts = self._points[self._surface_mesh_faces]  # n_faces, 3, n_coords
+            self.reference_scaling_factor = (faces_verts - faces_verts.mean(dim=1, keepdim=True)).norm(dim=-1).mean(dim=-1, keepdim=True)
     
     def unbind_surface_mesh(self):
         self._quaternions = nn.Parameter(self.quaternions.detach(), requires_grad=self.learn_quaternions).to(self.nerfmodel.device)
@@ -683,7 +703,7 @@ class SuGaR(nn.Module):
             nerf_cameras = self.nerfmodel.training_cameras
         
         camera_centers = nerf_cameras.p3d_cameras.get_camera_center()
-        avg_camera_center = camera_centers.mean(dim=0, keepdim=True)
+        avg_camera_center = camera_centers.mean(dim=0, keepdim=True)  # Should it be replaced by the center of camera bbox, i.e. (min + max) / 2?
         half_diagonal = torch.norm(camera_centers - avg_camera_center, dim=-1).max().item()
 
         radius = 1.1 * half_diagonal
@@ -2530,3 +2550,27 @@ def extract_texture_image_and_uv_from_gaussians(
         texture_img = texture_img / texture_counter.clamp(min=1)        
     
     return verts_uv, faces_uv, texture_img
+
+
+def convert_refined_sugar_into_gaussians(refined_sugar):
+    new_gaussians = GaussianModel(refined_sugar.sh_levels - 1)
+    
+    with torch.no_grad():
+        xyz = refined_sugar.points.cpu().numpy()
+        opacities = refined_sugar.all_densities.cpu().numpy()
+        features_dc = refined_sugar._sh_coordinates_dc.permute(0, 2, 1).cpu().numpy()
+        features_extra = refined_sugar._sh_coordinates_rest.permute(0, 2, 1).cpu().numpy()
+        
+        scales = scale_inverse_activation(refined_sugar.scaling).cpu().numpy()
+        rots = refined_sugar.quaternions.cpu().numpy()
+
+    new_gaussians._xyz = torch.nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
+    new_gaussians._features_dc = torch.nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+    new_gaussians._features_rest = torch.nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+    new_gaussians._opacity = torch.nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
+    new_gaussians._scaling = torch.nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
+    new_gaussians._rotation = torch.nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
+
+    new_gaussians.active_sh_degree = new_gaussians.max_sh_degree
+    
+    return new_gaussians
