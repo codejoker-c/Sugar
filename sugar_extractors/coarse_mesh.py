@@ -124,6 +124,7 @@ def extract_mesh_from_coarse_sugar(args):
     
     # Load the initial 3DGS model
     CONSOLE.print(f"Loading the initial 3DGS model from path {gs_checkpoint_path}...")
+    # the images in source_path are not used because load_gt_images=False
     nerfmodel = GaussianSplattingWrapper(
         source_path=source_path,
         output_path=gs_checkpoint_path,
@@ -217,7 +218,9 @@ def extract_mesh_from_coarse_sugar(args):
         image_size=(sugar.image_height, sugar.image_width),
         blur_radius=0.0, 
         faces_per_pixel=faces_per_pixel,
-        max_faces_per_bin=max_faces_per_bin
+        max_faces_per_bin=max_faces_per_bin,
+        # debug
+        bin_size=0
     )
     rasterizer = MeshRasterizer(
             cameras=nerfmodel.training_cameras.p3d_cameras[0], 
@@ -242,7 +245,7 @@ def extract_mesh_from_coarse_sugar(args):
 
             with torch.no_grad():
                 cameras_to_use = nerfmodel.training_cameras
-                    
+
                 for cam_idx in range(len(nerfmodel.training_cameras)):
                     if cam_idx % 30 == 0:
                         CONSOLE.print(f"Processing frame {cam_idx}/{len(nerfmodel.training_cameras)}...")
@@ -268,7 +271,7 @@ def extract_mesh_from_coarse_sugar(args):
                     # img = to_pil(rgb.cpu().permute(2, 0, 1))
                     # img.show()
 
-                    # Compute surface level points for the current frame
+                    # Compute surface level points for the current frame. Prepare input for poisson reconstruction
                     if cam_idx == 0:
                         sugar.reset_neighbors(knn_to_track=surface_level_knn_to_track)
                     with torch.no_grad():
@@ -414,6 +417,7 @@ def extract_mesh_from_coarse_sugar(args):
                     CONSOLE.print("Finished computing points, colors and normals.")
 
                     CONSOLE.print("Now computing mesh...")
+                    # poisson reconstruction
                     o3d_bg_mesh, o3d_bg_densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
                         bg_pcd, depth=poisson_depth) #, width=0, scale=1.1, linear_fit=False)  # depth=10 should be the default value? 11 is good to (but it starts to make a big number of triangles)
 
