@@ -12,7 +12,7 @@
 LIGM, Ecole des Ponts, Univ Gustave Eiffel, CNRS
 </font>
 
-| <a href="https://anttwo.github.io/sugar/">Webpage</a> | <a href="https://arxiv.org/abs/2311.12775">arXiv</a> | <a href="https://www.youtube.com/watch?v=MAkFyWfiBQo">Presentation video</a> |
+| <a href="https://anttwo.github.io/sugar/">Webpage</a> | <a href="https://arxiv.org/abs/2311.12775">arXiv</a> | <a href="https://www.youtube.com/watch?v=MAkFyWfiBQo">Presentation video</a> | <a href="https://www.youtube.com/watch?v=YbjE0wnw67I">Viewer video</a> |
 
 <img src="./media/examples/walk.gif" alt="walk.gif" width="350"/><img src="./media/examples/attack.gif" alt="attack.gif" width="350"/> <br>
 <b>Our method extracts meshes from 3D Gaussian Splatting reconstructions and builds hybrid representations <br>that enable easy composition and animation in Gaussian Splatting scenes by manipulating the mesh.</b>
@@ -61,6 +61,7 @@ Retrieving such an editable mesh for realistic rendering is done within minutes 
 <details>
 <summary><span style="font-weight: bold;">Updates</span></summary>
 <ul>
+  <li><b>[01/09/2024]</b> Added a dedicated, real-time viewer to let users visualize and navigate in the reconstructed scenes (hybrid representation, textured mesh and wireframe mesh).</li>
   <li><b>[12/20/2023]</b> Added a short notebook showing how to render images with the hybrid representation using the Gaussian Splatting rasterizer.</li>
   <li><b>[12/18/2023]</b> Code release.</li>
 </ul>
@@ -69,6 +70,9 @@ Retrieving such an editable mesh for realistic rendering is done within minutes 
 <details>
 <summary><span style="font-weight: bold;">To-do list</span></summary>
 <ul>
+  <li><b>Viewer:</b> Add option to load the postprocessed mesh.</li>
+  <li><b>Mesh extraction:</b> Add the possibility to edit the extent of the background bounding box.</li>
+  <li><b>Tips&Tricks:</b> Add to the README.md file (and the webpage) some tips and tricks for using SuGaR on your own data and obtain better reconstructions (see the tips provided by user kitmallet).</li>
   <li><b>Improvement:</b> Add an <code>if</code> block to <code>sugar_extractors/coarse_mesh.py</code> to skip foreground mesh reconstruction and avoid triggering an error if no surface point is detected inside the foreground bounding box. This can be useful for users that want to reconstruct "<i>background scenes</i>". </li>
   <li><b>Using precomputed masks with SuGaR:</b> Add a mask functionality to the SuGaR optimization, to allow the user to mask out some pixels in the training images (like white backgrounds in synthetic datasets).
   </li>
@@ -225,6 +229,7 @@ The most important arguments for the `train.py` script are the following:
 | `--high_poly` | `bool` | If True, uses the standard config for a high poly mesh, with `1_000_000` vertices and `1` Gaussian per triangle. |
 | `--refinement_time` | `str` | Default configs for time to spend on refinement. Can be `"short"` (2k iterations), `"medium"` (7k iterations) or `"long"` (15k iterations). |
 | `--export_uv_textured_mesh` / `-t` | `bool` | If True, will optimize and export a traditional textured mesh as an `.obj` file from the refined SuGaR model, after refinement. Computing a traditional color UV texture should take less than 10 minutes. Default is `True`. |
+| `--export_ply` | `bool` | If True, export a `.ply` file with the refined 3D Gaussians at the end of the training. This file can be large (+/- 500MB), but is needed for using the dedicated viewer. Default is `True`. |
 
 We provide more details about the two regularization methods `"density"` and `"sdf"` in the next section. For reconstructing detailed objects centered in the scene with 360° coverage, `"density"` provides a better foreground mesh. For a stronger regularization and a better balance between foreground and background, choose `"sdf"`. <br>
 The default configuration is `high_poly` with `refinement_time` set to `"long"`. Results are saved in the `output/` directory.<br>
@@ -279,6 +284,12 @@ Below is a detailed list of all the command line arguments for the `train.py` sc
 | `--postprocess_density_threshold` | `float` | Threshold to use for postprocessing the mesh. Default is `0.1`. |
 | `--postprocess_iterations` | `int` | Number of iterations to use for postprocessing the mesh. Default is `5`. |
 
+#### (Optional) Parameters for exporting PLY files for the dedicated viewer
+
+| Parameter | Type | Description |
+| :-------: | :--: | :---------: |
+| `--export_ply` | `bool` | If True, export a `.ply` file with the refined 3D Gaussians at the end of the training. This file can be large (+/- 500MB), but is needed for using the dedicated viewer. Default is `True`. |
+
 #### (Optional) Default configurations
 
 | Parameter | Type | Description |
@@ -289,6 +300,47 @@ Below is a detailed list of all the command line arguments for the `train.py` sc
 
 </details>
 
+
+## Installing and using the real-time viewer
+
+Please find <a href="https://www.youtube.com/watch?v=YbjE0wnw67I">here</a> a short video illustrating how to use the viewer.
+
+### 1. Installation
+
+*The viewer is currently built for Linux and Mac OS. It is not compatible with Windows. For Windows users, we recommend to use WSL2 (Windows Subsystem for Linux), as it is very easy to install and use. Please refer to the <a href="https://docs.microsoft.com/en-us/windows/wsl/install-win10">official documentation</a> for more details.<br> We thank <a href="https://github.com/mkkellogg/GaussianSplats3D">Mark Kellogg for his awesome 3D Gaussian Splatting implementation for Three.js</a>, which we used for building this viewer.*
+
+Please start by installing the latest versions of Node.js (such as 21.x) and npm.
+A simple way to do this is to run the following commands (using aptitude):
+
+```shell
+curl -fsSL https://deb.nodesource.com/setup_21.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo apt-get install aptitude
+sudo aptitude install -y npm
+```
+
+Then, go inside the `./sugar_viewer/` directory and run the following commands:
+
+```shell
+npm install
+cd ..
+```
+
+### 2. Usage
+
+First, make sure you have exported a `.ply` file and an `.obj` file using the `train.py` script. The `.ply` file contains the refined 3D Gaussians, and the `.obj` file contains the textured mesh. These files are exported by default when running the `train.py` script, so if you ran the code with default values for `--export_ply` and `--export_uv_textured_mesh`, you should be good to go.
+
+The ply file should be located in `./output/refined_ply/<your scene name>/`. Then, just run the following command in the root directory to start the viewer:
+
+```shell
+python run_viewer.py -p <path to the .ply file>
+```
+Please make sure your `.ply` file is located in the right folder, and use a relative path starting with `./output/refined_ply`.
+This command will redirect you to a local URL. Click on the link to open the viewer in your browser. Click the icons on the top right to switch between the different representations (hybrid representation, textured mesh, wireframe mesh). Use the mouse to rotate the scene, and the mouse wheel to zoom in and out. 
+
+<div align="center" >
+<img src="./media/examples/viewer_example.png" alt="viewer_example.png" width="800"/>
+</div><br>
 
 ## Tips for using SuGaR on your own data and obtain better reconstructions
 
@@ -346,7 +398,33 @@ Therefore, we recommend the following when using the `train.py` script:
 - For reconstructing detailed objects centered in the scene with 360° coverage (such as the toys we reconstructed in our presentation video), start with the density regularization `-r 'density'`. However, this may result in more chaotic Gaussians in the background.
 - For reconstructing more challenging scenes or enforcing a stronger regularization in the background, use the SDF regularization `-r 'sdf'`.
 
-### 4. (Optional) Adapt the scale and the bounding box of the scene
+### 4. I have holes in my mesh, what can I do?
+
+If you have holes in your mesh, this means the cleaning step of the Poisson mesh is too aggressive for your scene. You can reduce the treshold `vertices_density_quantile` used for cleaning by modifying line 43 of `sugar_extractors/coarse_mesh.py`. For example, you can change this line from
+```python
+  vertices_density_quantile = 0.1
+```
+to
+```python
+  vertices_density_quantile = 0.
+```
+
+### 5. I have messy ellipsoidal bumps on the surface of my mesh, what can I do?
+
+Depending on your scene, the default hyperparameters used for Poisson reconstruction may be too fine compared to the size of the Gaussians. Gaussian could then become visible on the mesh, which results in messy ellipsoidal bumps on the surface of the mesh.
+This could happen if the camera trajectory is very close to a simple foreground object, for example.<br>
+To fix this, you can reduce the depth of Poisson reconstruction `poisson_depth` by modifying line 42 of `sugar_extractors/coarse_mesh.py`. <br>
+For example, you can change line 42 from
+```python
+  poisson_depth = 10
+```
+to
+```python
+  poisson_depth = 7
+```
+You may also try `poisson_depth = 6`, or `poisson_depth = 8` if the result is not satisfying.
+
+### 6. (Optional) Adapt the scale and the bounding box of the scene
 
 As it is explained in the original <a href="https://github.com/graphdeco-inria/gaussian-splatting">3D Gaussian Splatting repository</a>, the method is expected to reconstruct a scene with reasonable scale. For reconstructing much larger datasets, like a city district, the original authors recommend to lower the learning rates of the positions and scaling factors of the Gaussians. The more extensive the scene, the lower these values should be.
 
@@ -360,7 +438,7 @@ The user is free to provide a custom bounding box to the `train.py` script, usin
 
 ## Rendering, composition and animation
 
-The `metrics.py` script provides an example of how to load a refined SuGaR model for rendering a scene with the hybrid representation and the Gaussian Splatting rasterizer. We will add more details about this in a near future, as well as a notebook with a detailed tutorial.
+The `view_sugar_results.ipynb` notebook and the `metrics.py` script provides examples of how to load a refined SuGaR model for rendering a scene with the hybrid representation and the Gaussian Splatting rasterizer. We will add more details about this in a near future.
 
 We also provide in the `blender` directory several python scripts to export from Blender composition and animation data of SuGaR meshes modified or animated within Blender. Additionally, we provide in the `sugar_scene/sugar_compositor.py` script a Python class that can be used to import such animation or composition data into PyTorch and apply it to the SuGaR hybrid representation. 
 
