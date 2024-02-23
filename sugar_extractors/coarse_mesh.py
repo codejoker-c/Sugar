@@ -40,8 +40,8 @@ def extract_mesh_from_coarse_sugar(args):
     # Mesh computation parameters
     fg_bbox_factor = 1.  # 1.
     bg_bbox_factor = 4.  # 4.
-    poisson_depth = 10  # 10 for most real scenes. 6 or 7 work well for most synthetic scenes
-    vertices_density_quantile = 0.1  # 0.1 for most real scenes. 0. works well for most synthetic scenes
+    poisson_depth = 7  # 10 for most real scenes. 6 or 7 work well for most synthetic scenes
+    vertices_density_quantile = 0.  # 0.1 for most real scenes. 0. works well for most synthetic scenes
     decimate_mesh = True
     clean_mesh = True
     
@@ -221,7 +221,7 @@ def extract_mesh_from_coarse_sugar(args):
         faces_per_pixel=faces_per_pixel,
         max_faces_per_bin=max_faces_per_bin,
         # debug
-        bin_size=0
+        # bin_size=0
     )
     rasterizer = MeshRasterizer(
             cameras=nerfmodel.training_cameras.p3d_cameras[0], 
@@ -247,6 +247,7 @@ def extract_mesh_from_coarse_sugar(args):
             with torch.no_grad():
                 cameras_to_use = nerfmodel.training_cameras
 
+                # iterate all the training cameras to efficient sample points in the same level set
                 for cam_idx in range(len(nerfmodel.training_cameras)):
                     if cam_idx % 30 == 0:
                         CONSOLE.print(f"Processing frame {cam_idx}/{len(nerfmodel.training_cameras)}...")
@@ -255,7 +256,7 @@ def extract_mesh_from_coarse_sugar(args):
                     
                     point_depth = cameras_to_use.p3d_cameras[cam_idx].get_world_to_view_transform().transform_points(sugar.points)[..., 2:].expand(-1, 3)
                     
-                    # Render RGB image with Gaussian splattding
+                    # Render RGB image with Gaussian splatting
                     rgb = sugar.render_image_gaussian_rasterizer(
                         nerf_cameras=cameras_to_use, 
                         camera_indices=cam_idx,

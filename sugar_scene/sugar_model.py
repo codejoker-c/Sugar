@@ -677,9 +677,11 @@ class SuGaR(nn.Module):
 
         # Compute texture from sh coordinates
         shs_view = sh_coordinates.transpose(-1, -2).view(-1, 3, sh_levels ** 2)
+
         # debug
         sh2rgb = shs_view[..., 0]
         # sh2rgb = eval_sh(sh_levels - 1, shs_view, directions)
+
         directional_texture = torch.clamp_min(sh2rgb + 0.5, 0.0).view(-1, 3)
         directional_texture = directional_texture.view(self.texture_size, self.texture_size, 3)
 
