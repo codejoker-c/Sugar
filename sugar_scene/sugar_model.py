@@ -464,6 +464,7 @@ class SuGaR(nn.Module):
     @property
     def triangle_vertices(self):
         # build mesh vertices from gaussians
+
         # Apply shift to triangle vertices
         if self.primitive_types == 'diamond':
             self.primitive_verts = self._diamond_verts
@@ -583,6 +584,12 @@ class SuGaR(nn.Module):
     def splat_mesh(self, p3d_camera,
                    mode='perspective'  # 'depth' or 'perspective'
                    ):
+        # build mesh from gaussians
+        # 1. build mesh vertices from gaussians. Specifically, setup n vertices around every gaussian center with specific rule.
+        # 2. transform vertices and gaussians to camera space and strech the vertices vector by (gaussian depth / points projection along gaussians vector)
+        # 3. build mesh faces with primitive triangles, the connected rule of mesh vertices is predefined.
+        # 4. use vertices, faces and uv map to build mesh.
+
         new_verts = self.triangle_vertices.clone().reshape(-1, self.n_vertices_per_gaussian,
                                                            3)  # Shape (n_points, n_vertices_per_gaussian, 3)
         camera_center = p3d_camera.get_camera_center().view(1, 1, 3)  # Shape (1, 1, 3)
@@ -598,7 +605,7 @@ class SuGaR(nn.Module):
         if mode == 'depth':
             new_verts_in_camera_space[..., 2] = gaussian_centers_in_camera_space[..., 2]
         else:
-            # stretch the vector by (gaussian depth / points projection along gaussians vector) in camera space
+            # stretch the new verts vector by (gaussian depth / points projection along gaussians vector) in camera space
             proj_dir = torch.nn.functional.normalize(gaussian_centers_in_camera_space, dim=-1)  # Shape (n_points, 1, 3)
             verts_projection = (new_verts_in_camera_space * proj_dir).sum(-1,
                                                                           keepdim=True)  # Shape (n_points, n_vertices_per_gaussian, 1)
@@ -645,6 +652,7 @@ class SuGaR(nn.Module):
         return cov3D
 
     def update_texture_features(self, square_size_in_texture=2):
+        # get the color attribute of all gaussians
         features = self.sh_coordinates.view(len(self.points), -1)
         faces_uv, verts_uv, texture_img, point_idx_per_pixel = _convert_vertex_colors_to_texture(
             self,
@@ -660,6 +668,7 @@ class SuGaR(nn.Module):
         self._texture_initialized = True
 
     def get_texture_img(self, nerf_cameras, cam_idx, sh_levels: int = None, ):
+        # get texture image, same as texture image in update_texture_features, but did not store it so build it again here.
         if nerf_cameras is None:
             nerf_cameras = self.nerfmodel.training_cameras
         if sh_levels is None:
@@ -678,7 +687,7 @@ class SuGaR(nn.Module):
         # Compute texture from sh coordinates
         shs_view = sh_coordinates.transpose(-1, -2).view(-1, 3, sh_levels ** 2)
 
-        # debug
+        # debug get all rgb value of uv maps(texture images)
         sh2rgb = shs_view[..., 0]
         # sh2rgb = eval_sh(sh_levels - 1, shs_view, directions)
 
@@ -1882,6 +1891,7 @@ class SuGaR(nn.Module):
             if True:
                 mesh.textures._maps_padded = textures_img[None]
 
+            # TODO read code here
             fragments = rasterizer(mesh, cameras=p3d_cameras)
             depth = fragments.zbuf[0, ..., 0]
         # TODO fix problem here
@@ -2396,6 +2406,7 @@ def _convert_vertex_colors_to_texture(
         colors: torch.Tensor,
         square_size: int = 4,
 ):
+    # convert gaussians to uv map, the square_size means (1 gaussian) converting to (square_size^2 verts_uv)
     # if square size equal 1, then all gaussians' color will be put into the texture image one by one,
     # otherwise(square size>1) there will be square_size^2 pixels in the texture image has the same color value
     # point_idx_per_pixel store the corresponding gaussian index for each pixel in texture image
